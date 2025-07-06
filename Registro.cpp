@@ -1,24 +1,10 @@
+#include "Registro.h" // Inclui a definição da classe do arquivo de cabeçalho
 
-#include <cmath>
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <list>
-#include <sstream>
-#include <string>
-#include <vector>
+// Implementação do construtor
+Registro::Registro(const std::string& chave, const std::vector<std::string>& dados)
+    : chave(chave), dados(dados) {}
 
-using namespace std;
-
-class Registro {
- public:
-  string chave;
-  vector<string> dados;
-
-  Registro(const string& chave, const vector<string>& dados)
-      : chave(chave), dados(dados) {}
-
-  bool operator==(const Registro& outro) const {
-    return chave == outro.chave && dados == outro.dados;
-  }
-};
+// Implementação do operador de igualdade
+bool Registro::operator==(const Registro& outro) const {
+  return chave == outro.chave && dados == outro.dados;
+}
