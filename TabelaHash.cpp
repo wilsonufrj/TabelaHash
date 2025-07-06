@@ -1,125 +1,112 @@
+#include "TabelaHash.h"
+#include <vector> // Para std::vector
+#include <list>   // Para std::list
+#include <string> // Para std::string
+#include <functional> // Para std::function, std::hash
+#include <cmath>    // Para std::floor
 
-#include "Registro.cpp"
+// Implementação das funções de hash auxiliares
+size_t TabelaHash::hashDivisao(const std::string& chave) {
+  size_t hash = 0;
+  for (char c : chave) {
+    hash = hash * 31 + c; // Um valor primo comum para multiplicação em hashing
+  }
+  return hash % tamanho;
+}
 
-class TabelaHash {
- private:
-  vector<list<Registro>> tabela;
-  size_t tamanho;
-  function<size_t(const string&)> funcaoHash;
-  string metodoColisao;
+size_t TabelaHash::hashMultiplicacao(const std::string& chave) {
+  const double A = 0.6180339887; // Constante relacionada à razão áurea
+  size_t hash_val = 0;
+  for (char c : chave) {
+    hash_val = hash_val * 31 + c;
+  }
+  double val = hash_val * A;
+  return static_cast<size_t>(tamanho * (val - std::floor(val)));
+}
 
-  // Funções de hash auxiliares
-  size_t hashDivisao(const string& chave) {
-    size_t hash = 0;
-    for (char c : chave) {
-      hash = hash * 31 + c;
+size_t TabelaHash::hashDobra(const std::string& chave) {
+  size_t hash = 0;
+  // Simples exemplo de dobra, pode ser mais sofisticado
+  for (size_t i = 0; i < chave.length(); i += 4) {
+    unsigned int segmento = 0;
+    for (size_t j = 0; j < 4 && i + j < chave.length(); ++j) {
+      segmento = (segmento << 8) + chave[i+j];
     }
-    return hash % tamanho;
+    hash += segmento;
   }
+  return hash % tamanho;
+}
 
-  size_t hashMultiplicacao(const string& chave) {
-    const double A = 0.6180339887;  // Constante áurea
-    size_t hash = 0;
-    for (char c : chave) {
-      hash = hash * 31 + c;
-    }
-    double valor = hash * A;
-    return static_cast<size_t>(tamanho * (valor - floor(valor)));
+size_t TabelaHash::hashPadrao(const std::string& chave) {
+  // Utiliza a função hash padrão da STL para strings
+  return std::hash<std::string>{}(chave) % tamanho;
+}
+
+// Construtor
+TabelaHash::TabelaHash(size_t tamanho, const std::string& metodoColisao, const std::string& tipoHash)
+    : tamanho(tamanho), metodoColisao(metodoColisao) {
+  tabela.resize(tamanho);
+
+  if (tipoHash == "divisao") {
+    funcaoHash = [this](const std::string& chave_str) { return this->hashDivisao(chave_str); };
+  } else if (tipoHash == "multiplicacao") {
+    funcaoHash = [this](const std::string& chave_str) { return this->hashMultiplicacao(chave_str); };
+  } else if (tipoHash == "dobra") {
+    funcaoHash = [this](const std::string& chave_str) { return this->hashDobra(chave_str); };
+  } else { // Padrão ou qualquer outro valor
+    funcaoHash = [this](const std::string& chave_str) { return this->hashPadrao(chave_str); };
   }
+}
 
-  size_t hashDobra(const string& chave) {
-    size_t hash = 0;
-    for (char c : chave) {
-      hash = (hash << 5) ^ (hash >> 27) ^ c;
-    }
-    return hash % tamanho;
-  }
+// Insere um registro na tabela hash
+bool TabelaHash::inserir(const Registro& registro) {
+  size_t indice = funcaoHash(registro.chave);
 
-  size_t hashPadrao(const string& chave) {
-    return hash<string>{}(chave) % tamanho;
-  }
-
- public:
-  // Construtor
-  TabelaHash(size_t tamanho = 100,
-             const string& metodoColisao = "encadeamento_exterior",
-             const string& tipoHash = "divisao")
-      : tamanho(tamanho), metodoColisao(metodoColisao) {
-    tabela.resize(tamanho);
-
-    // Seleciona a função de hash
-    if (tipoHash == "divisao") {
-      funcaoHash = [this](const string& chave) {
-        return this->hashDivisao(chave);
-      };
-    } else if (tipoHash == "multiplicacao") {
-      funcaoHash = [this](const string& chave) {
-        return this->hashMultiplicacao(chave);
-      };
-    } else if (tipoHash == "dobra") {
-      funcaoHash = [this](const string& chave) {
-        return this->hashDobra(chave);
-      };
-    } else {
-      funcaoHash = [this](const string& chave) {
-        return this->hashPadrao(chave);
-      };
-    }
-  }
-
-  // Insere um registro na tabela hash (com tratamento de duplicatas)
-  bool inserir(const Registro& registro) {
-    size_t indice = funcaoHash(registro.chave);
-
-    if (metodoColisao == "encadeamento_exterior") {
-      // Verifica se já existe um registro igual
-      for (const auto& reg : tabela[indice]) {
-        if (reg == registro) {
-          return false;  // Registro duplicado
-        }
+  if (metodoColisao == "encadeamento_exterior") {
+    for (const auto& reg : tabela[indice]) {
+      if (reg.chave == registro.chave) { // Verifica apenas pela chave para duplicatas
+        // Se a política fosse verificar todos os dados, seria: if (reg == registro)
+        return false; // Chave duplicada encontrada
       }
-      tabela[indice].push_back(registro);
+    }
+    tabela[indice].push_back(registro);
+    return true;
+  }
+  // Outros métodos de tratamento de colisão poderiam ser implementados aqui.
+  // Por simplicidade, este exemplo foca no encadeamento exterior.
+  return false; // Se o método de colisão não for suportado ou falhar
+}
+
+// Busca um registro pela chave
+Registro* TabelaHash::buscar(const std::string& chave) {
+  size_t indice = funcaoHash(chave);
+  for (auto& reg : tabela[indice]) {
+    if (reg.chave == chave) {
+      return &reg;
+    }
+  }
+  return nullptr; // Não encontrado
+}
+
+// Remove um registro pela chave
+bool TabelaHash::remover(const std::string& chave) {
+  size_t indice = funcaoHash(chave);
+  for (auto it = tabela[indice].begin(); it != tabela[indice].end(); ++it) {
+    if (it->chave == chave) {
+      tabela[indice].erase(it);
       return true;
     }
-    // Outros métodos de tratamento de colisão podem ser implementados aqui
-    return false;
   }
+  return false; // Não encontrado
+}
 
-  // Busca um registro pela chave
-  Registro* buscar(const string& chave) {
-    size_t indice = funcaoHash(chave);
-
-    for (auto& reg : tabela[indice]) {
-      if (reg.chave == chave) {
-        return &reg;
-      }
+// Retorna todos os registros únicos
+std::vector<Registro> TabelaHash::obterRegistrosUnicos() const {
+  std::vector<Registro> registros;
+  for (const auto& bucket : tabela) {
+    for (const auto& reg : bucket) {
+      registros.push_back(reg);
     }
-    return nullptr;
   }
-
-  // Remove um registro pela chave
-  bool remover(const string& chave) {
-    size_t indice = funcaoHash(chave);
-
-    for (auto it = tabela[indice].begin(); it != tabela[indice].end(); ++it) {
-      if (it->chave == chave) {
-        tabela[indice].erase(it);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Retorna todos os registros únicos (para deduplicação)
-  vector<Registro> obterRegistrosUnicos() const {
-    vector<Registro> registros;
-
-    for (const auto& bucket : tabela) {
-      for (const auto& reg : bucket) {
-        registros.push_back(reg);
-      }
-    }
-
-    return registros;
-  }
-};
+  return registros;
+}
